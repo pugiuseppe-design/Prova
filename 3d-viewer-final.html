@@ -1,0 +1,1638 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizzatore 3D - Giuseppe Puglisi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .viewer-container {
+            flex: 1;
+            position: relative;
+            background: #1a1a2e;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.98);
+            padding: 40px 60px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            display: none;
+            text-align: center;
+            z-index: 1000;
+            min-width: 400px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-title {
+            font-size: 18px;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .debug-log {
+            text-align: left;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+
+        .debug-item {
+            padding: 4px 0;
+            color: #555;
+            font-family: monospace;
+        }
+
+        .debug-item.success {
+            color: #28a745;
+        }
+
+        .debug-item.error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .debug-item.warning {
+            color: #ffc107;
+        }
+
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            max-width: 300px;
+            display: none;
+        }
+
+        .info-panel.active {
+            display: block;
+        }
+
+        .info-panel h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .info-item strong {
+            color: #333;
+        }
+
+        .help-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            max-width: 250px;
+        }
+
+        .help-panel h3 {
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .help-item {
+            margin: 8px 0;
+            font-size: 12px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .help-item::before {
+            content: "→";
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .success-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(40, 167, 69, 0.95);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            display: none;
+            text-align: center;
+            z-index: 999;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .success-message.active {
+            display: block;
+            animation: fadeInOut 3s ease-in-out;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        }
+
+        .camera-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-family: monospace;
+            display: none;
+        }
+
+        .camera-info.active {
+            display: block;
+        }
+
+        .orientation-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.98);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            max-width: 320px;
+            display: none;
+            z-index: 100;
+        }
+
+        .orientation-panel.active {
+            display: block;
+        }
+
+        .orientation-panel h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .orientation-section {
+            margin: 15px 0;
+        }
+
+        .orientation-section h4 {
+            color: #555;
+            font-size: 13px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-small:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .btn-small.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .rotation-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 8px 0;
+        }
+
+        .rotation-control label {
+            width: 60px;
+            font-size: 13px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .rotation-control input[type="range"] {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .rotation-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+
+        .rotation-control input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+        }
+
+        .rotation-control .value {
+            width: 45px;
+            text-align: right;
+            font-size: 12px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .materials-panel {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.98);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            max-width: 320px;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+            display: none;
+            z-index: 100;
+        }
+
+        .materials-panel.active {
+            display: block;
+        }
+
+        .materials-panel h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .material-section {
+            margin: 15px 0;
+        }
+
+        .material-section h4 {
+            color: #555;
+            font-size: 13px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .material-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .material-btn {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            background: white;
+            text-align: center;
+            min-height: 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .material-btn:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .material-btn.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        }
+
+        .material-preview {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .material-label {
+            font-size: 10px;
+            color: #555;
+        }
+
+        .color-picker-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 10px 0;
+        }
+
+        .color-picker-container input[type="color"] {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .color-picker-container label {
+            font-size: 13px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .property-slider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 8px 0;
+        }
+
+        .property-slider label {
+            width: 80px;
+            font-size: 12px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .property-slider input[type="range"] {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .property-slider input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+
+        .property-slider input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+        }
+
+        .property-slider .value {
+            width: 35px;
+            text-align: right;
+            font-size: 12px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .orientation-section {
+            margin: 15px 0;
+        }
+
+        .orientation-section h4 {
+            color: #555;
+            font-size: 13px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-small:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .btn-small.active {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>Visualizzatore 3D</h1>
+                <div class="subtitle" id="subtitleInfo">Giuseppe Puglisi - Ingegneria Meccanica</div>
+            </div>
+            <div class="controls">
+                <button class="btn btn-secondary" onclick="resetCamera()" title="Riposiziona la camera">
+                    🔄 Reset Vista
+                </button>
+                <button class="btn btn-secondary" onclick="toggleWireframe()" title="Visualizza struttura mesh">
+                    📐 Wireframe
+                </button>
+                <button class="btn btn-secondary" onclick="toggleAutoRotate()" id="rotateBtn" title="Rotazione automatica">
+                    🔁 Auto-Rotazione
+                </button>
+                <button class="btn btn-secondary" onclick="toggleCameraInfo()" title="Mostra posizione camera">
+                    📹 Camera Info
+                </button>
+                <button class="btn btn-secondary" onclick="toggleOrientationPanel()" title="Orienta piano e modello">
+                    🧭 Orientamento
+                </button>
+                <button class="btn btn-secondary" onclick="toggleMaterialsPanel()" title="Cambia materiale e colore">
+                    🎨 Materiali
+                </button>
+                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                    📁 Carica Modello
+                </button>
+                <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.stl,.fbx,.ply" onchange="loadModel(event)">
+            </div>
+        </div>
+
+        <div class="viewer-container">
+            <div id="canvas-container"></div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div class="loading-title">Caricamento modello...</div>
+                <div class="debug-log" id="debugLog"></div>
+            </div>
+
+            <div class="success-message" id="successMessage">
+                ✅ Modello Caricato con Successo!
+            </div>
+
+            <div class="camera-info" id="cameraInfo">
+                Camera Position: <span id="camPos">-</span><br>
+                Camera Target: <span id="camTarget">-</span><br>
+                Distance: <span id="camDist">-</span>
+            </div>
+
+            <div class="info-panel" id="infoPanel">
+                <h3>📊 Informazioni Modello</h3>
+                <div class="info-item">
+                    <span>Vertici:</span>
+                    <strong id="vertices">-</strong>
+                </div>
+                <div class="info-item">
+                    <span>Facce:</span>
+                    <strong id="faces">-</strong>
+                </div>
+                <div class="info-item">
+                    <span>Dimensioni:</span>
+                    <strong id="dimensions">-</strong>
+                </div>
+                <div class="info-item">
+                    <span>Formato:</span>
+                    <strong id="format">-</strong>
+                </div>
+                <div class="info-item">
+                    <span>In Scena:</span>
+                    <strong id="inScene">-</strong>
+                </div>
+            </div>
+
+            <div class="help-panel">
+                <h3>🎮 Controlli</h3>
+                <div class="help-item">Click sinistro + trascina: Ruota</div>
+                <div class="help-item">Click destro + trascina: Pan</div>
+                <div class="help-item">Scroll mouse: Zoom</div>
+                <div class="help-item">Doppio click: Focus automatico</div>
+            </div>
+
+            <div class="orientation-panel" id="orientationPanel">
+                <h3>🧭 Orientamento</h3>
+                
+                <div class="orientation-section">
+                    <h4>Piano di Riferimento</h4>
+                    <div class="btn-group">
+                        <button class="btn-small active" onclick="setGroundPlane('XZ')" id="btn-XZ">XZ (Y↑)</button>
+                        <button class="btn-small" onclick="setGroundPlane('XY')" id="btn-XY">XY (Z↑)</button>
+                        <button class="btn-small" onclick="setGroundPlane('YZ')" id="btn-YZ">YZ (X↑)</button>
+                    </div>
+                </div>
+
+                <div class="orientation-section">
+                    <h4>Rotazione Modello</h4>
+                    
+                    <div class="rotation-control">
+                        <label>X:</label>
+                        <input type="range" id="rotX" min="-180" max="180" value="0" step="1" oninput="rotateModel()">
+                        <span class="value" id="rotXVal">0°</span>
+                    </div>
+                    
+                    <div class="rotation-control">
+                        <label>Y:</label>
+                        <input type="range" id="rotY" min="-180" max="180" value="0" step="1" oninput="rotateModel()">
+                        <span class="value" id="rotYVal">0°</span>
+                    </div>
+                    
+                    <div class="rotation-control">
+                        <label>Z:</label>
+                        <input type="range" id="rotZ" min="-180" max="180" value="0" step="1" oninput="rotateModel()">
+                        <span class="value" id="rotZVal">0°</span>
+                    </div>
+
+                    <div class="btn-group" style="margin-top: 12px;">
+                        <button class="btn-small" onclick="resetModelRotation()">🔄 Reset</button>
+                        <button class="btn-small" onclick="quickRotate('X', 90)">X+90°</button>
+                        <button class="btn-small" onclick="quickRotate('Y', 90)">Y+90°</button>
+                        <button class="btn-small" onclick="quickRotate('Z', 90)">Z+90°</button>
+                    </div>
+                </div>
+
+                <div class="orientation-section">
+                    <h4>Rotazione Auto</h4>
+                    <div class="btn-group">
+                        <button class="btn-small active" onclick="setAutoRotateAxis('Y')" id="btn-autoY">Asse Y</button>
+                        <button class="btn-small" onclick="setAutoRotateAxis('X')" id="btn-autoX">Asse X</button>
+                        <button class="btn-small" onclick="setAutoRotateAxis('Z')" id="btn-autoZ">Asse Z</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="materials-panel" id="materialsPanel">
+                <h3>🎨 Materiali e Colori</h3>
+                
+                <div class="material-section">
+                    <h4>Metalli</h4>
+                    <div class="material-grid">
+                        <button class="material-btn" onclick="setMaterial('steel')" id="mat-steel">
+                            <div class="material-preview" style="background: linear-gradient(135deg, #b8b8b8, #8a8a8a);"></div>
+                            <span class="material-label">Acciaio</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('aluminum')" id="mat-aluminum">
+                            <div class="material-preview" style="background: linear-gradient(135deg, #e8e8e8, #c0c0c0);"></div>
+                            <span class="material-label">Alluminio</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('bronze')" id="mat-bronze">
+                            <div class="material-preview" style="background: linear-gradient(135deg, #cd7f32, #8b5a2b);"></div>
+                            <span class="material-label">Bronzo</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('copper')" id="mat-copper">
+                            <div class="material-preview" style="background: linear-gradient(135deg, #ff7f00, #d35400);"></div>
+                            <span class="material-label">Rame</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('gold')" id="mat-gold">
+                            <div class="material-preview" style="background: linear-gradient(135deg, #ffd700, #daa520);"></div>
+                            <span class="material-label">Oro</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('chrome')" id="mat-chrome">
+                            <div class="material-preview" style="background: linear-gradient(135deg, #f0f0f0, #d0d0d0);"></div>
+                            <span class="material-label">Cromato</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="material-section">
+                    <h4>Colori Standard</h4>
+                    <div class="material-grid">
+                        <button class="material-btn" onclick="setMaterial('red')" id="mat-red">
+                            <div class="material-preview" style="background: #e74c3c;"></div>
+                            <span class="material-label">Rosso</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('blue')" id="mat-blue">
+                            <div class="material-preview" style="background: #3498db;"></div>
+                            <span class="material-label">Blu</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('green')" id="mat-green">
+                            <div class="material-preview" style="background: #00ff00;"></div>
+                            <span class="material-label">Verde</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('yellow')" id="mat-yellow">
+                            <div class="material-preview" style="background: #f1c40f;"></div>
+                            <span class="material-label">Giallo</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('orange')" id="mat-orange">
+                            <div class="material-preview" style="background: #e67e22;"></div>
+                            <span class="material-label">Arancione</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('purple')" id="mat-purple">
+                            <div class="material-preview" style="background: #9b59b6;"></div>
+                            <span class="material-label">Viola</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('black')" id="mat-black">
+                            <div class="material-preview" style="background: #2c3e50;"></div>
+                            <span class="material-label">Nero</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('white')" id="mat-white">
+                            <div class="material-preview" style="background: #ecf0f1; border: 1px solid #bdc3c7;"></div>
+                            <span class="material-label">Bianco</span>
+                        </button>
+                        <button class="material-btn" onclick="setMaterial('gray')" id="mat-gray">
+                            <div class="material-preview" style="background: #7f8c8d;"></div>
+                            <span class="material-label">Grigio</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="material-section">
+                    <h4>Colore Personalizzato</h4>
+                    <div class="color-picker-container">
+                        <input type="color" id="customColor" value="#667eea" onchange="setCustomColor()">
+                        <label>Scegli colore</label>
+                    </div>
+                </div>
+
+                <div class="material-section">
+                    <h4>Proprietà Materiale</h4>
+                    
+                    <div class="property-slider">
+                        <label>Metallicità:</label>
+                        <input type="range" id="metalness" min="0" max="100" value="30" step="1" oninput="updateMaterialProperties()">
+                        <span class="value" id="metalnessVal">0.3</span>
+                    </div>
+                    
+                    <div class="property-slider">
+                        <label>Rugosità:</label>
+                        <input type="range" id="roughness" min="0" max="100" value="40" step="1" oninput="updateMaterialProperties()">
+                        <span class="value" id="roughnessVal">0.4</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+        import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+        import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+
+        let scene, camera, renderer, controls;
+        let currentModel = null;
+        let wireframeMode = false;
+        let showCameraInfo = false;
+        let gridHelper = null;
+        let axesHelper = null;
+        let currentGroundPlane = 'XZ'; // Default: XZ plane (Y up)
+        let autoRotateAxis = 'Y'; // Default auto-rotate around Y axis
+        let modelRotation = { x: 0, y: 0, z: 0 };
+        let autoRotateEnabled = false;
+        let autoRotateSpeed = 0.01; // Radians per frame
+        let currentMaterial = null;
+        let currentFileName = '';
+        let materialProperties = {
+            metalness: 0.3,
+            roughness: 0.4
+        };
+
+        const debugLog = [];
+
+        function addDebugLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLog.push({ timestamp, message, type });
+            
+            const logContainer = document.getElementById('debugLog');
+            if (logContainer) {
+                const logItem = document.createElement('div');
+                logItem.className = `debug-item ${type}`;
+                logItem.textContent = `[${timestamp}] ${message}`;
+                logContainer.appendChild(logItem);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function init() {
+            addDebugLog('Inizializzazione viewer...', 'info');
+            const container = document.getElementById('canvas-container');
+            
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x2a2a3e);
+            addDebugLog('Scena creata', 'success');
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(
+                50,
+                container.clientWidth / container.clientHeight,
+                0.01,  // Near plane molto vicino
+                10000  // Far plane molto lontano
+            );
+            camera.position.set(10, 10, 10);
+            addDebugLog('Camera configurata', 'success');
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+            addDebugLog('Renderer WebGL attivo', 'success');
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 0.1;
+            controls.maxDistance = 10000;
+            controls.autoRotate = false;
+            controls.autoRotateSpeed = 0; // We use custom auto-rotation
+            addDebugLog('Controlli mouse attivi', 'success');
+
+            // Lights - Illuminazione molto forte
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+            scene.add(ambientLight);
+            
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 2.0);
+            directionalLight1.position.set(10, 20, 10);
+            scene.add(directionalLight1);
+
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 1.5);
+            directionalLight2.position.set(-10, 10, -10);
+            scene.add(directionalLight2);
+
+            const directionalLight3 = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight3.position.set(0, -10, 0);
+            scene.add(directionalLight3);
+
+            const backLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            backLight.position.set(0, 10, -10);
+            scene.add(backLight);
+            
+            addDebugLog('Luci aggiunte (molto luminose)', 'success');
+
+            // Grid - will be oriented based on ground plane
+            gridHelper = new THREE.GridHelper(100, 50, 0x666666, 0x555555);
+            scene.add(gridHelper);
+            
+            // Axes
+            axesHelper = new THREE.AxesHelper(50);
+            scene.add(axesHelper);
+            
+            // Set initial orientation
+            updateGroundPlaneOrientation();
+            
+            addDebugLog('Griglia e assi di riferimento aggiunti', 'success');
+
+            // Window resize
+            window.addEventListener('resize', onWindowResize);
+
+            // Animation loop
+            animate();
+            addDebugLog('Loop di animazione avviato', 'success');
+            addDebugLog('✓ Inizializzazione completata!', 'success');
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Handle auto-rotation on custom axis
+            if (autoRotateEnabled && currentModel) {
+                switch(autoRotateAxis) {
+                    case 'X':
+                        currentModel.rotation.x += autoRotateSpeed;
+                        break;
+                    case 'Y':
+                        currentModel.rotation.y += autoRotateSpeed;
+                        break;
+                    case 'Z':
+                        currentModel.rotation.z += autoRotateSpeed;
+                        break;
+                }
+            }
+            
+            controls.update();
+            
+            if (showCameraInfo) {
+                updateCameraInfo();
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function updateCameraInfo() {
+            const pos = camera.position;
+            const target = controls.target;
+            const dist = pos.distanceTo(target);
+            
+            document.getElementById('camPos').textContent = 
+                `(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+            document.getElementById('camTarget').textContent = 
+                `(${target.x.toFixed(1)}, ${target.y.toFixed(1)}, ${target.z.toFixed(1)})`;
+            document.getElementById('camDist').textContent = dist.toFixed(1);
+        }
+
+        window.loadModel = async function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Save filename
+            currentFileName = file.name;
+            document.getElementById('subtitleInfo').textContent = `File: ${currentFileName}`;
+
+            // Reset debug log
+            document.getElementById('debugLog').innerHTML = '';
+            debugLog.length = 0;
+
+            addDebugLog(`File selezionato: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, 'info');
+            
+            document.getElementById('loading').classList.add('active');
+
+            try {
+                const url = URL.createObjectURL(file);
+                const extension = file.name.split('.').pop().toLowerCase();
+                addDebugLog(`Tipo file: ${extension.toUpperCase()}`, 'info');
+
+                // Remove previous model
+                if (currentModel) {
+                    addDebugLog('Rimozione modello precedente...', 'info');
+                    scene.remove(currentModel);
+                    currentModel = null;
+                }
+
+                let loader;
+
+                switch(extension) {
+                    case 'stl':
+                        addDebugLog('Caricamento file STL...', 'info');
+                        loader = new STLLoader();
+                        loader.load(
+                            url,
+                            (geometry) => handleSTLLoad(geometry),
+                            (progress) => {
+                                const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                                addDebugLog(`Caricamento: ${percent}%`, 'info');
+                            },
+                            (error) => {
+                                addDebugLog(`ERRORE STL: ${error.message}`, 'error');
+                                alert('Errore nel caricamento del file STL');
+                                document.getElementById('loading').classList.remove('active');
+                            }
+                        );
+                        break;
+
+                    case 'fbx':
+                        addDebugLog('Caricamento file FBX...', 'info');
+                        loader = new FBXLoader();
+                        loader.load(
+                            url,
+                            (object) => handleFBXLoad(object),
+                            (progress) => {
+                                const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                                addDebugLog(`Caricamento: ${percent}%`, 'info');
+                            },
+                            (error) => {
+                                addDebugLog(`ERRORE FBX: ${error.message}`, 'error');
+                                alert('Errore nel caricamento del file FBX');
+                                document.getElementById('loading').classList.remove('active');
+                            }
+                        );
+                        break;
+
+                    case 'glb':
+                    case 'gltf':
+                        addDebugLog('Caricamento file GLB/GLTF...', 'info');
+                        loader = new GLTFLoader();
+                        loader.load(
+                            url,
+                            (gltf) => handleGLTFLoad(gltf),
+                            (progress) => {
+                                const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                                addDebugLog(`Caricamento: ${percent}%`, 'info');
+                            },
+                            (error) => {
+                                addDebugLog(`ERRORE GLTF: ${error.message}`, 'error');
+                                alert('Errore nel caricamento del file GLTF');
+                                document.getElementById('loading').classList.remove('active');
+                            }
+                        );
+                        break;
+
+                    case 'obj':
+                        addDebugLog('Caricamento file OBJ...', 'info');
+                        loader = new OBJLoader();
+                        loader.load(
+                            url,
+                            (object) => handleOBJLoad(object),
+                            (progress) => {
+                                const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                                addDebugLog(`Caricamento: ${percent}%`, 'info');
+                            },
+                            (error) => {
+                                addDebugLog(`ERRORE OBJ: ${error.message}`, 'error');
+                                alert('Errore nel caricamento del file OBJ');
+                                document.getElementById('loading').classList.remove('active');
+                            }
+                        );
+                        break;
+
+                    case 'ply':
+                        addDebugLog('Caricamento file PLY...', 'info');
+                        loader = new PLYLoader();
+                        loader.load(
+                            url,
+                            (geometry) => handlePLYLoad(geometry),
+                            (progress) => {
+                                const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                                addDebugLog(`Caricamento: ${percent}%`, 'info');
+                            },
+                            (error) => {
+                                addDebugLog(`ERRORE PLY: ${error.message}`, 'error');
+                                alert('Errore nel caricamento del file PLY');
+                                document.getElementById('loading').classList.remove('active');
+                            }
+                        );
+                        break;
+
+                    default:
+                        addDebugLog(`Formato non supportato: ${extension}`, 'error');
+                        alert('Formato non supportato: ' + extension);
+                        document.getElementById('loading').classList.remove('active');
+                }
+
+            } catch (error) {
+                addDebugLog(`ERRORE CRITICO: ${error.message}`, 'error');
+                console.error('Errore dettagliato:', error);
+                alert('Errore nel caricamento del modello');
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        function handleSTLLoad(geometry) {
+            addDebugLog('Geometria STL ricevuta', 'success');
+            geometry.computeVertexNormals();
+            geometry.center();
+            addDebugLog('Normali calcolate e geometria centrata', 'success');
+            
+            const material = new THREE.MeshStandardMaterial({
+                color: 0x00ff00, // Verde brillante per massima visibilità
+                metalness: 0.3,
+                roughness: 0.4,
+                flatShading: false,
+                side: THREE.DoubleSide
+            });
+            
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            
+            finishLoading(mesh, 'STL');
+        }
+
+        function handleFBXLoad(object) {
+            addDebugLog('Oggetto FBX ricevuto', 'success');
+            
+            // Applica materiale visibile a tutte le mesh
+            object.traverse((child) => {
+                if (child.isMesh) {
+                    addDebugLog(`Mesh trovata: ${child.name || 'unnamed'}`, 'info');
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: 0xff00ff, // Magenta brillante
+                        metalness: 0.3,
+                        roughness: 0.4,
+                        side: THREE.DoubleSide
+                    });
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            
+            finishLoading(object, 'FBX');
+        }
+
+        function handleGLTFLoad(gltf) {
+            addDebugLog('GLTF caricato', 'success');
+            finishLoading(gltf.scene, 'GLTF');
+        }
+
+        function handleOBJLoad(object) {
+            addDebugLog('OBJ caricato', 'success');
+            object.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: 0x00ffff, // Ciano brillante
+                        metalness: 0.3,
+                        roughness: 0.4,
+                        side: THREE.DoubleSide
+                    });
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            finishLoading(object, 'OBJ');
+        }
+
+        function handlePLYLoad(geometry) {
+            addDebugLog('PLY caricato', 'success');
+            geometry.computeVertexNormals();
+            geometry.center();
+            
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xffff00, // Giallo brillante
+                metalness: 0.3,
+                roughness: 0.4,
+                side: THREE.DoubleSide
+            });
+            
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            
+            finishLoading(mesh, 'PLY');
+        }
+
+        function finishLoading(model, format) {
+            currentModel = model;
+            scene.add(currentModel);
+            addDebugLog('✓ Modello aggiunto alla scena', 'success');
+            
+            // Calcola bounding box
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            
+            addDebugLog(`Centro: (${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)})`, 'info');
+            addDebugLog(`Dimensioni: ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)}`, 'info');
+            
+            // Verifica se il modello è nella scena
+            const inScene = scene.children.includes(currentModel);
+            addDebugLog(`Modello in scena: ${inScene ? 'SÌ ✓' : 'NO ✗'}`, inScene ? 'success' : 'error');
+            
+            // Posiziona camera automaticamente
+            fitCameraToObject(currentModel);
+            addDebugLog('Camera riposizionata automaticamente', 'success');
+            
+            // Update info panel
+            updateModelInfo(currentModel, format);
+            
+            // Hide loading, show success
+            document.getElementById('loading').classList.remove('active');
+            
+            const successMsg = document.getElementById('successMessage');
+            successMsg.classList.add('active');
+            setTimeout(() => {
+                successMsg.classList.remove('active');
+            }, 3000);
+            
+            addDebugLog('🎉 CARICAMENTO COMPLETATO!', 'success');
+            
+            // Force render
+            renderer.render(scene, camera);
+            
+            console.log('=== DEBUG INFO ===');
+            console.log('Scene children:', scene.children.length);
+            console.log('Current model:', currentModel);
+            console.log('Camera position:', camera.position);
+            console.log('Camera target:', controls.target);
+            console.log('==================');
+        }
+
+        function fitCameraToObject(object) {
+            const box = new THREE.Box3().setFromObject(object);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+            cameraZ *= 3.0; // Ancora più distante
+
+            const distance = cameraZ;
+            camera.position.set(
+                center.x + distance * 0.7,
+                center.y + distance * 0.7,
+                center.z + distance * 0.7
+            );
+            camera.lookAt(center);
+            
+            controls.target.copy(center);
+            controls.minDistance = maxDim * 0.01;
+            controls.maxDistance = maxDim * 20;
+            controls.update();
+
+            addDebugLog(`Camera posizionata a distanza ${distance.toFixed(2)}`, 'success');
+        }
+
+        function updateModelInfo(object, format) {
+            let vertices = 0;
+            let faces = 0;
+
+            object.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.geometry) {
+                        const positions = child.geometry.attributes.position;
+                        if (positions) {
+                            vertices += positions.count;
+                        }
+                        if (child.geometry.index) {
+                            faces += child.geometry.index.count / 3;
+                        } else if (positions) {
+                            faces += positions.count / 3;
+                        }
+                    }
+                }
+            });
+
+            const box = new THREE.Box3().setFromObject(object);
+            const size = box.getSize(new THREE.Vector3());
+
+            document.getElementById('vertices').textContent = vertices.toLocaleString('it-IT');
+            document.getElementById('faces').textContent = Math.floor(faces).toLocaleString('it-IT');
+            document.getElementById('dimensions').textContent = 
+                `${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)}`;
+            document.getElementById('format').textContent = format;
+            document.getElementById('inScene').textContent = scene.children.includes(object) ? '✓ SÌ' : '✗ NO';
+            document.getElementById('infoPanel').classList.add('active');
+        }
+
+        window.resetCamera = function() {
+            if (currentModel) {
+                addDebugLog('Reset camera manuale...', 'info');
+                fitCameraToObject(currentModel);
+            } else {
+                camera.position.set(10, 10, 10);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            }
+        }
+
+        window.toggleWireframe = function() {
+            if (!currentModel) return;
+            
+            wireframeMode = !wireframeMode;
+            currentModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material.wireframe = wireframeMode;
+                }
+            });
+            addDebugLog(`Wireframe ${wireframeMode ? 'attivato' : 'disattivato'}`, 'info');
+        }
+
+        window.toggleAutoRotate = function() {
+            autoRotateEnabled = !autoRotateEnabled;
+            const btn = document.getElementById('rotateBtn');
+            if (autoRotateEnabled) {
+                btn.style.background = '#667eea';
+                btn.style.color = 'white';
+                addDebugLog(`Auto-rotazione attivata (asse ${autoRotateAxis})`, 'info');
+            } else {
+                btn.style.background = '#f0f0f0';
+                btn.style.color = '#333';
+                addDebugLog('Auto-rotazione disattivata', 'info');
+            }
+        }
+
+        window.toggleCameraInfo = function() {
+            showCameraInfo = !showCameraInfo;
+            document.getElementById('cameraInfo').classList.toggle('active', showCameraInfo);
+        }
+
+        window.toggleOrientationPanel = function() {
+            const panel = document.getElementById('orientationPanel');
+            panel.classList.toggle('active');
+        }
+
+        window.setGroundPlane = function(plane) {
+            currentGroundPlane = plane;
+            updateGroundPlaneOrientation();
+            
+            // Update button states
+            document.querySelectorAll('.orientation-panel .btn-small').forEach(btn => {
+                if (btn.id === `btn-${plane}`) {
+                    btn.classList.add('active');
+                } else if (btn.id && btn.id.startsWith('btn-X') || btn.id.startsWith('btn-Y')) {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            addDebugLog(`Piano di riferimento: ${plane}`, 'info');
+        }
+
+        function updateGroundPlaneOrientation() {
+            if (!gridHelper || !axesHelper) return;
+            
+            // Reset rotations
+            gridHelper.rotation.set(0, 0, 0);
+            axesHelper.rotation.set(0, 0, 0);
+            
+            switch(currentGroundPlane) {
+                case 'XZ': // Y is up (default)
+                    // Grid is already in XZ plane
+                    break;
+                    
+                case 'XY': // Z is up
+                    gridHelper.rotation.x = Math.PI / 2;
+                    axesHelper.rotation.x = Math.PI / 2;
+                    break;
+                    
+                case 'YZ': // X is up
+                    gridHelper.rotation.z = Math.PI / 2;
+                    axesHelper.rotation.z = Math.PI / 2;
+                    break;
+            }
+            
+            // Adjust camera if needed
+            if (currentModel) {
+                fitCameraToObject(currentModel);
+            }
+        }
+
+        window.rotateModel = function() {
+            if (!currentModel) return;
+            
+            const rotX = parseFloat(document.getElementById('rotX').value);
+            const rotY = parseFloat(document.getElementById('rotY').value);
+            const rotZ = parseFloat(document.getElementById('rotZ').value);
+            
+            modelRotation = { x: rotX, y: rotY, z: rotZ };
+            
+            currentModel.rotation.x = rotX * Math.PI / 180;
+            currentModel.rotation.y = rotY * Math.PI / 180;
+            currentModel.rotation.z = rotZ * Math.PI / 180;
+            
+            document.getElementById('rotXVal').textContent = rotX + '°';
+            document.getElementById('rotYVal').textContent = rotY + '°';
+            document.getElementById('rotZVal').textContent = rotZ + '°';
+        }
+
+        window.resetModelRotation = function() {
+            if (!currentModel) return;
+            
+            document.getElementById('rotX').value = 0;
+            document.getElementById('rotY').value = 0;
+            document.getElementById('rotZ').value = 0;
+            
+            modelRotation = { x: 0, y: 0, z: 0 };
+            rotateModel();
+            
+            addDebugLog('Rotazione modello resettata', 'info');
+        }
+
+        window.quickRotate = function(axis, degrees) {
+            if (!currentModel) return;
+            
+            const slider = document.getElementById(`rot${axis}`);
+            const currentValue = parseFloat(slider.value);
+            let newValue = currentValue + degrees;
+            
+            // Keep within -180 to 180 range
+            if (newValue > 180) newValue -= 360;
+            if (newValue < -180) newValue += 360;
+            
+            slider.value = newValue;
+            rotateModel();
+            
+            addDebugLog(`Rotazione ${axis}: ${degrees > 0 ? '+' : ''}${degrees}°`, 'info');
+        }
+
+        window.setAutoRotateAxis = function(axis) {
+            autoRotateAxis = axis;
+            
+            // Update button states
+            document.querySelectorAll('#orientationPanel .btn-small').forEach(btn => {
+                if (btn.id === `btn-auto${axis}`) {
+                    btn.classList.add('active');
+                } else if (btn.id && btn.id.startsWith('btn-auto')) {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            addDebugLog(`Auto-rotazione attorno asse ${axis}`, 'info');
+        }
+
+        window.toggleCameraInfo = function() {
+            showCameraInfo = !showCameraInfo;
+            document.getElementById('cameraInfo').classList.toggle('active', showCameraInfo);
+        }
+
+        window.toggleMaterialsPanel = function() {
+            const panel = document.getElementById('materialsPanel');
+            panel.classList.toggle('active');
+        }
+
+        // Material presets database
+        const materialPresets = {
+            steel: { color: 0xa8a8a8, metalness: 0.9, roughness: 0.3 },
+            aluminum: { color: 0xd0d0d0, metalness: 0.85, roughness: 0.25 },
+            bronze: { color: 0xcd7f32, metalness: 0.8, roughness: 0.4 },
+            copper: { color: 0xff7f00, metalness: 0.85, roughness: 0.35 },
+            gold: { color: 0xffd700, metalness: 0.9, roughness: 0.2 },
+            chrome: { color: 0xf0f0f0, metalness: 1.0, roughness: 0.1 },
+            red: { color: 0xe74c3c, metalness: 0.3, roughness: 0.5 },
+            blue: { color: 0x3498db, metalness: 0.3, roughness: 0.5 },
+            green: { color: 0x00ff00, metalness: 0.3, roughness: 0.5 },
+            yellow: { color: 0xf1c40f, metalness: 0.3, roughness: 0.5 },
+            orange: { color: 0xe67e22, metalness: 0.3, roughness: 0.5 },
+            purple: { color: 0x9b59b6, metalness: 0.3, roughness: 0.5 },
+            black: { color: 0x2c3e50, metalness: 0.4, roughness: 0.6 },
+            white: { color: 0xecf0f1, metalness: 0.2, roughness: 0.5 },
+            gray: { color: 0x7f8c8d, metalness: 0.3, roughness: 0.5 }
+        };
+
+        window.setMaterial = function(materialName) {
+            if (!currentModel) {
+                addDebugLog('Nessun modello caricato', 'warning');
+                return;
+            }
+
+            const preset = materialPresets[materialName];
+            if (!preset) {
+                addDebugLog(`Materiale sconosciuto: ${materialName}`, 'error');
+                return;
+            }
+
+            // Update material properties
+            materialProperties.metalness = preset.metalness;
+            materialProperties.roughness = preset.roughness;
+
+            // Update sliders
+            document.getElementById('metalness').value = preset.metalness * 100;
+            document.getElementById('roughness').value = preset.roughness * 100;
+            document.getElementById('metalnessVal').textContent = preset.metalness.toFixed(2);
+            document.getElementById('roughnessVal').textContent = preset.roughness.toFixed(2);
+
+            // Apply material to all meshes
+            currentModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: preset.color,
+                        metalness: preset.metalness,
+                        roughness: preset.roughness,
+                        side: THREE.DoubleSide
+                    });
+                    currentMaterial = child.material;
+                }
+            });
+
+            // Update active button
+            document.querySelectorAll('.material-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const activeBtn = document.getElementById(`mat-${materialName}`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+
+            addDebugLog(`Materiale applicato: ${materialName}`, 'success');
+        }
+
+        window.setCustomColor = function() {
+            if (!currentModel) {
+                addDebugLog('Nessun modello caricato', 'warning');
+                return;
+            }
+
+            const colorPicker = document.getElementById('customColor');
+            const color = new THREE.Color(colorPicker.value);
+
+            currentModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: color,
+                        metalness: materialProperties.metalness,
+                        roughness: materialProperties.roughness,
+                        side: THREE.DoubleSide
+                    });
+                    currentMaterial = child.material;
+                }
+            });
+
+            // Remove active state from preset buttons
+            document.querySelectorAll('.material-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            addDebugLog(`Colore personalizzato applicato: ${colorPicker.value}`, 'success');
+        }
+
+        window.updateMaterialProperties = function() {
+            if (!currentModel || !currentMaterial) {
+                return;
+            }
+
+            const metalness = parseFloat(document.getElementById('metalness').value) / 100;
+            const roughness = parseFloat(document.getElementById('roughness').value) / 100;
+
+            materialProperties.metalness = metalness;
+            materialProperties.roughness = roughness;
+
+            // Update all meshes
+            currentModel.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    child.material.metalness = metalness;
+                    child.material.roughness = roughness;
+                    child.material.needsUpdate = true;
+                }
+            });
+
+            document.getElementById('metalnessVal').textContent = metalness.toFixed(2);
+            document.getElementById('roughnessVal').textContent = roughness.toFixed(2);
+        }
+
+        // Initialize
+        init();
+        
+        window.THREE = THREE;
+        window.scene = scene;
+        window.camera = camera;
+        window.renderer = renderer;
+    </script>
+</body>
+</html>
